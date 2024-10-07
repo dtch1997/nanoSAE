@@ -82,7 +82,7 @@ class SAETrainer:
         # Compute additional SAE metrics not covered in loss
         l0 = (sae_act > 0).float().sum(-1).mean()
         per_token_l2_loss = (sae_out - sae_in).pow(2).sum(dim=-1).squeeze()
-        total_variance = (sae_in - sae_in.mean(0)).pow(2).sum(-1)
+        total_variance = (sae_in - sae_in.mean(0)).pow(2).sum(dim=-1)
         explained_variance = 1 - per_token_l2_loss / total_variance
 
         # Build log dict

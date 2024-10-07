@@ -88,7 +88,7 @@ class VanillaSAETrainingWrapper(SAETrainingWrapper):
 
     sae: VanillaSAE
 
-    def __init__(self, sae: VanillaSAE, l1_coeff: float = 1e-3):
+    def __init__(self, sae: VanillaSAE, l1_coeff: float):
         self.sae = sae
         self.l1_coeff = l1_coeff
 
@@ -99,7 +99,7 @@ class VanillaSAETrainingWrapper(SAETrainingWrapper):
         sae_act = self.sae.encode(x)
         x_recon = self.sae.decode(sae_act)
 
-        mse_loss = (x - x_recon).pow(2).mean(-1)
+        mse_loss = (x - x_recon).pow(2).sum(-1)
         l1_loss = sae_act.abs().sum(-1)
         
         loss = (mse_loss + self.l1_coeff * l1_loss).mean()
