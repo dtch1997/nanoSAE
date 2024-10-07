@@ -2,17 +2,16 @@
 name = "nanoSAE"
 version = "0.1.0"
 description = "Minimal SAE training implementation"
-authors = [
-    {name = "Daniel Tan", email = "dtch1997@users.noreply.github.com"},
-]
-dependencies = [
-    "torch>=2.4.1",
-    "jaxtyping>=0.2.34",
-    "nnsight>=0.3.6",
-]
+authors = [{ name = "Daniel Tan", email = "dtch1997@users.noreply.github.com" }]
+dependencies = ["torch>=2.4.1", "jaxtyping>=0.2.34", "datasets>=3.0.1"]
 requires-python = ">=3.11"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
+
+[project.optional-dependencies]
+nnsight = ["nnsight>=0.3.6"]
+transformer-lens = ["transformer-lens>=2.7.0"]
+notebook = ["ipykernel>=6.29.5"]
 
 [build-system]
 requires = ["pdm-backend"]
