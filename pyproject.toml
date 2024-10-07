@@ -26,3 +26,24 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
+
+
+[tool.ruff]
+line-length = 88
+lint.select = [
+    "E", # pycodestyle
+    "F", # pyflakes
+    "I",
+]
+exclude = ["third_party", ".venv", "experiments"]
+lint.ignore = ["F841", "E501", "E741", "I001", "E731", "F722"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.semantic_release]
+version_variables = [
+    "nanosae/__init__.py:__version__",
+    "pyproject.toml:version",
+]
+branch = "main"

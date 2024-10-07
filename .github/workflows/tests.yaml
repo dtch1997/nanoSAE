@@ -40,8 +40,8 @@ jobs:
         run: pdm install
       - name: check formatting
         run: pdm run ruff format --check
-      # - name: check linting
-      #   run: pdm run ruff check
+      - name: check linting
+        run: pdm run ruff check
       # - name: check types
       #   run: pdm run pyright
       - name: test
