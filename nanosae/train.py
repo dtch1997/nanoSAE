@@ -29,8 +29,8 @@ class SAETrainer:
     def train_step(self):
         # Training forward pass
         tokens = next(self.tokens_iterator)
-        model_acts = self.model_act_getter(tokens)
-        train_step_output = self.sae_train_wrapper(model_acts)
+        model_acts = self.model_act_getter.get_activations(tokens)
+        train_step_output = self.sae_train_wrapper.training_forward_pass(model_acts)
 
         # Backward pass
         loss = train_step_output.loss

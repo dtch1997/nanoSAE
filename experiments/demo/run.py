@@ -4,10 +4,8 @@
 
 import torch
 
-from itertools import cycle
 from dataclasses import dataclass
-from datasets import load_dataset
-from typing import Generator, Iterator
+from typing import Iterator
 
 from transformer_lens import HookedTransformer
 from nanosae.core import Data, Tokens
