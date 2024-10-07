@@ -9,6 +9,7 @@ from torch import Tensor
 from nanosae.core import SAE, SAETrainingWrapper, TrainStepOutput
 from nanosae.utils.device import get_device
 
+
 class VanillaSAE(SAE):
     d_in: int
     d_sae: int
@@ -34,15 +35,11 @@ class VanillaSAE(SAE):
         self.weight_normalize_eps = weight_normalize_eps
         self.tied_weights = tied_weights
 
-        self.W_enc = nn.Parameter(
-            nn.init.kaiming_uniform_(torch.empty((d_in, d_sae)))
-        )
+        self.W_enc = nn.Parameter(nn.init.kaiming_uniform_(torch.empty((d_in, d_sae))))
         self._W_dec = (
             None
             if tied_weights
-            else nn.Parameter(
-                nn.init.kaiming_uniform_(torch.empty((d_sae, d_in)))
-            )
+            else nn.Parameter(nn.init.kaiming_uniform_(torch.empty((d_sae, d_in))))
         )
         self.b_enc = nn.Parameter(torch.zeros(d_sae))
         self.b_dec = nn.Parameter(torch.zeros(d_in))
@@ -56,24 +53,20 @@ class VanillaSAE(SAE):
     @property
     def W_dec_normalized(self) -> Float[Tensor, "d_sae d_in"]:
         """Returns decoder weights, normalized over the autoencoder input dimension."""
-        return self.W_dec / (self.W_dec.norm(dim=-1, keepdim=True) + self.weight_normalize_eps)
+        return self.W_dec / (
+            self.W_dec.norm(dim=-1, keepdim=True) + self.weight_normalize_eps
+        )
 
-    def encode(
-        self, x: Float[Tensor, "... d_in"]
-    ) -> Float[Tensor, "... d_sae"]:
+    def encode(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_sae"]:
         # Center the input
         x_cent = x - self.b_dec
         pre_acts = (
-            einops.einsum(
-                x_cent, self.W_enc, "... d_in, d_in d_sae -> ... d_sae"
-            )
+            einops.einsum(x_cent, self.W_enc, "... d_in, d_in d_sae -> ... d_sae")
             + self.b_enc
         )
         return F.relu(pre_acts)
 
-    def decode(
-        self, z: Float[Tensor, "... d_sae"]
-    ) -> Float[Tensor, "... d_in"]:
+    def decode(self, z: Float[Tensor, "... d_sae"]) -> Float[Tensor, "... d_in"]:
         return (
             einops.einsum(
                 z,
@@ -85,23 +78,19 @@ class VanillaSAE(SAE):
 
 
 class VanillaSAETrainingWrapper(SAETrainingWrapper):
-
     sae: VanillaSAE
 
     def __init__(self, sae: VanillaSAE, l1_coeff: float):
         self.sae = sae
         self.l1_coeff = l1_coeff
 
-    def training_forward_pass(
-        self, x: Float[Tensor, "... d_in"]
-    ) -> TrainStepOutput:
-
+    def training_forward_pass(self, x: Float[Tensor, "... d_in"]) -> TrainStepOutput:
         sae_act = self.sae.encode(x)
         x_recon = self.sae.decode(sae_act)
 
         mse_loss = (x - x_recon).pow(2).sum(-1).mean()
         l1_loss = sae_act.abs().sum(-1).mean()
-        
+
         loss = mse_loss + self.l1_coeff * l1_loss
         return TrainStepOutput(
             sae_in=x,
@@ -110,7 +99,7 @@ class VanillaSAETrainingWrapper(SAETrainingWrapper):
             loss=loss,
             loss_dict={"mse_loss": mse_loss, "l1_loss": l1_loss},
         )
-    
+
     def on_train_step_end(self):
         # Normalize decoder weights by modifying them inplace (if not using tied weights)
         if not self.sae.tied_weights:

@@ -2,27 +2,29 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-try: 
+try:
     import wandb
 except ImportError:
     pass
 
+
 @dataclass
-class WandbConfig: 
+class WandbConfig:
     project: str
     entity: str
     group: str
     name: str
     mode: str = "online"
 
+
 class Logger(ABC):
     @abstractmethod
     def log(self, log_dict: dict[str, Any], step: int):
         pass
 
+
 class WandbLogger(Logger):
     def __init__(self, config: WandbConfig):
-        
         # Finish any existing runs
         wandb.finish()
 
@@ -31,7 +33,7 @@ class WandbLogger(Logger):
             entity=config.entity,
             group=config.group,
             name=config.name,
-            mode = config.mode,
+            mode=config.mode,
         )
         self.wandb = wandb
 

@@ -6,8 +6,14 @@ from typing import Any, Iterator
 from tqdm import tqdm
 from torch.optim import Optimizer
 from dataclasses import dataclass
-from nanosae.core import Tokens, SAETrainingWrapper, ModelActivationsGetter, TrainStepOutput
+from nanosae.core import (
+    Tokens,
+    SAETrainingWrapper,
+    ModelActivationsGetter,
+    TrainStepOutput,
+)
 from nanosae.logging import Logger
+
 
 @dataclass
 class SAETrainerConfig:
@@ -15,9 +21,10 @@ class SAETrainerConfig:
     checkpoint_every_n_tokens: int
     disable_tqdm: bool = False
 
+
 @dataclass
 class SAETrainer:
-    """ Class for training an SAE """
+    """Class for training an SAE"""
 
     sae_train_wrapper: SAETrainingWrapper
     tokens_iterator: Iterator[Tokens]
@@ -41,10 +48,10 @@ class SAETrainer:
         return train_step_output
 
     def fit(self):
-        """ Boilerplate training loop """
+        """Boilerplate training loop"""
         n_tokens_seen = 0
 
-        with tqdm(total = self.config.n_train_tokens) as progress_bar:
+        with tqdm(total=self.config.n_train_tokens) as progress_bar:
             while n_tokens_seen < self.config.n_train_tokens:
                 # Perform a training step
                 train_step_output = self.train_step()
@@ -55,8 +62,10 @@ class SAETrainer:
                 # TODO: checkpointing logic
 
                 # Log training step output
-                log_dict = self._build_train_step_log_dict(train_step_output, n_tokens_seen)
-                self.logger.log(log_dict, step  = n_tokens_seen)
+                log_dict = self._build_train_step_log_dict(
+                    train_step_output, n_tokens_seen
+                )
+                self.logger.log(log_dict, step=n_tokens_seen)
 
                 # Increment progress bar and token count
                 n_tokens_seen += train_step_output.n_tokens
@@ -68,7 +77,7 @@ class SAETrainer:
         output: TrainStepOutput,
         n_training_tokens: int,
     ) -> dict[str, Any]:
-        """" Build a dictionary of things to log after a training step """
+        """ " Build a dictionary of things to log after a training step"""
 
         # Unpack train step output
         sae_in = output.sae_in
@@ -94,18 +103,20 @@ class SAETrainer:
             log_dict[f"losses/{k}"] = v.mean().item()
 
         # Add metrics
-        log_dict.update({            
-            # variance explained
-            "metrics/explained_variance": explained_variance.mean().item(),
-            "metrics/explained_variance_std": explained_variance.std().item(),
-            "metrics/l0": l0.item(),
-            # sparsity
-            # "sparsity/mean_passes_since_fired": self.n_forward_passes_since_fired.mean().item(),
-            # "sparsity/dead_features": self.dead_neurons.sum().item(),
-            # other training details
-            "details/current_learning_rate": current_learning_rate,
-            # "details/current_l1_coefficient": self.current_l1_coefficient,
-            "details/n_training_tokens": n_training_tokens,
-        })
+        log_dict.update(
+            {
+                # variance explained
+                "metrics/explained_variance": explained_variance.mean().item(),
+                "metrics/explained_variance_std": explained_variance.std().item(),
+                "metrics/l0": l0.item(),
+                # sparsity
+                # "sparsity/mean_passes_since_fired": self.n_forward_passes_since_fired.mean().item(),
+                # "sparsity/dead_features": self.dead_neurons.sum().item(),
+                # other training details
+                "details/current_learning_rate": current_learning_rate,
+                # "details/current_l1_coefficient": self.current_l1_coefficient,
+                "details/n_training_tokens": n_training_tokens,
+            }
+        )
 
         return log_dict
