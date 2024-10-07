@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor
 
-from nanosae.core import SAE, SAETrainingWrapper
+from nanosae.core import SAE, SAETrainingWrapper, TrainStepOutput
 from nanosae.utils.device import get_device
 
 class VanillaSAE(SAE):
@@ -94,23 +94,24 @@ class VanillaSAETrainingWrapper(SAETrainingWrapper):
 
     def training_forward_pass(
         self, x: Float[Tensor, "... d_in"]
-    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    ) -> TrainStepOutput:
 
         sae_act = self.sae.encode(x)
         x_recon = self.sae.decode(sae_act)
 
-        L_reconstruction = (x - x_recon).pow(2).mean(-1)
-        L_sparsity = sae_act.abs().sum(-1)
-        info_dict = {
-            "L_reconstruction": L_reconstruction,
-            "L_sparsity": L_sparsity,
-        }
-        loss = (L_reconstruction + self.l1_coeff * L_sparsity).mean(0).sum()
-        return loss, info_dict
+        mse_loss = (x - x_recon).pow(2).mean(-1)
+        l1_loss = sae_act.abs().sum(-1)
+        
+        loss = (mse_loss + self.l1_coeff * l1_loss).mean(0).sum()
+        return TrainStepOutput(
+            sae_in=x,
+            sae_out=x_recon,
+            sae_act=sae_act,
+            loss=loss,
+            loss_dict={"mse_loss": mse_loss, "l1_loss": l1_loss},
+        )
     
-    def on_train_step_end(self, info_dict: dict[str, torch.Tensor]) -> None:
+    def on_train_step_end(self):
         # Normalize decoder weights by modifying them inplace (if not using tied weights)
         if not self.sae.tied_weights:
             self.sae.W_dec.data = self.sae.W_dec_normalized
-
-        # TODO: implement resampling dead neurons?
