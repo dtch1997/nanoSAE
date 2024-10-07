@@ -127,7 +127,7 @@ def setup_trainer(config: ExperimentConfig) -> SAETrainer:
         mode = config.wandb_mode
     )
     logger = WandbLogger(wandb_config)
-
+    logger.set_config(config)
 
     # Setup training
     training_config = SAETrainerConfig(
