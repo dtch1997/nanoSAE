@@ -102,7 +102,7 @@ class VanillaSAETrainingWrapper(SAETrainingWrapper):
         mse_loss = (x - x_recon).pow(2).mean(-1)
         l1_loss = sae_act.abs().sum(-1)
         
-        loss = (mse_loss + self.l1_coeff * l1_loss).mean(0).sum()
+        loss = (mse_loss + self.l1_coeff * l1_loss).mean()
         return TrainStepOutput(
             sae_in=x,
             sae_out=x_recon,
