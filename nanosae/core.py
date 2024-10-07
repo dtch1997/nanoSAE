@@ -4,16 +4,27 @@ import math
 import torch
 import torch.nn as nn 
 
-from typing import Any
+from typing import Iterator
 from abc import ABC, abstractmethod
 from jaxtyping import Float, Int
 from dataclasses import dataclass
 
+Data = str | list[int] | Int[torch.Tensor, "seq"]
 
-Tokens = list[str] | Int[torch.Tensor, "... "]
+# Model inputs are batches of tensors corresponding to tokens
+Tokens = Float[torch.Tensor, "... "]
 ModelActivations = Float[torch.Tensor, "... d_model"]
 SAEActivations = Float[torch.Tensor, "... d_sae"]
 Loss = Float[torch.Tensor, " ()"]
+
+class DataIterator(Iterator[Data], ABC):
+    @abstractmethod
+    def __iter__(self) -> 'DataIterator':
+        pass
+
+    @abstractmethod
+    def __next__(self) -> Data:
+        pass
 
 class SAE(nn.Module, ABC):
     """ Inference-only SAE """
@@ -59,10 +70,6 @@ class SAETrainingWrapper(ABC):
         - info_dict contains any additional information needed for logging
         """
         pass
-
-    # Syntactic sugar to allow calling the training forward pass directly
-    def __call__(self, x: ModelActivations) -> TrainStepOutput:
-        return self.training_forward_pass(x)
     
     def on_train_step_end(self) -> None:
         """ Hook for inserting custom logic at the end of a training step 
@@ -70,19 +77,13 @@ class SAETrainingWrapper(ABC):
         E.g. post-processing the SAE decoder weights (unit norm, resampling)
         """
 
-class TokensIterator(ABC):
-    """ Abstract base class for iterating over a dataset of tokens """ 
+class ModelActivationsGetter(ABC):
+    """ Abstract base class for getting model activations from model inputs """
+
     @abstractmethod
-    def next_batch(self) -> Tokens:
+    def get_tokens(self, x: Data) -> Tokens:
         pass
 
-
-class ModelActivationsGetter(ABC):
-    """ Abstract base class for getting model activations from tokens """
     @abstractmethod
     def get_activations(self, x: Tokens) -> ModelActivations:
         pass
-
-    # Syntactic sugar to allow calling the model activations getter directly
-    def __call__(self, x: Tokens) -> ModelActivations:
-        return self.get_activations(x)

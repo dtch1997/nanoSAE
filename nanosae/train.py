@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import torch
 
-from typing import Any
+from typing import Any, Iterator
 from tqdm import tqdm
 from torch.optim import Optimizer
 from dataclasses import dataclass
-from nanosae.core import SAETrainingWrapper, TokensIterator, ModelActivationsGetter, TrainStepOutput
+from nanosae.core import Tokens, SAETrainingWrapper, ModelActivationsGetter, TrainStepOutput
 from nanosae.logging import Logger
 
 @dataclass
@@ -20,7 +20,7 @@ class SAETrainer:
     """ Class for training an SAE """
 
     sae_train_wrapper: SAETrainingWrapper
-    tokens_iterator: TokensIterator
+    tokens_iterator: Iterator[Tokens]
     model_act_getter: ModelActivationsGetter
     optimizer: Optimizer
     config: SAETrainerConfig
@@ -28,7 +28,7 @@ class SAETrainer:
 
     def train_step(self):
         # Training forward pass
-        tokens = self.tokens_iterator.next_batch()
+        tokens = next(self.tokens_iterator)
         model_acts = self.model_act_getter(tokens)
         train_step_output = self.sae_train_wrapper(model_acts)
 
@@ -54,6 +54,7 @@ class SAETrainer:
 
                 # TODO: checkpointing logic
 
+                # Log training step output
                 log_dict = self._build_train_step_log_dict(train_step_output, n_tokens_seen)
                 self.logger.log(log_dict, step  = n_tokens_seen)
 

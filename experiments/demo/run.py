@@ -1,58 +1,73 @@
 # %%
 
+""" Reproduction of https://github.com/jbloomAus/SAELens/blob/main/tutorials/training_a_sparse_autoencoder.ipynb """
+
 import torch
 
+from itertools import cycle
 from dataclasses import dataclass
 from datasets import load_dataset
-from typing import Literal
+from typing import Generator, Iterator
 
 from transformer_lens import HookedTransformer
-from nanosae.core import Tokens, TokensIterator
+from nanosae.core import Data, Tokens
 from nanosae.core import ModelActivations, ModelActivationsGetter
-from nanosae.train import SAETrainerConfig, TrainStepOutput, SAETrainer
+from nanosae.train import SAETrainerConfig, SAETrainer
 from nanosae.sae.vanilla import VanillaSAE, VanillaSAETrainingWrapper
 from nanosae.logging import WandbLogger, WandbConfig
-
-dataset_path="apollo-research/roneneldan-TinyStories-tokenizer-gpt2"
-dataset = load_dataset(dataset_path, split="train", streaming=True)
-for example in dataset:
-    print(example['input_ids'])
-    break
-
-class TinystoriesTokensIterator(TokensIterator):
-    def __init__(self, data_path: str, *, batch_size: int = 1, split: Literal["train", "test"] = "train"):
-        self.dataset = load_dataset(data_path, split=split)
-        self.idx = 0
-        self.batch_size = batch_size
-
-    def next_batch(self) -> Tokens:
-        batch = self.dataset[self.idx : self.idx + self.batch_size]
-        self.idx += self.batch_size
-        if self.idx >= len(self.dataset):
-            self.idx = 0
-        return batch["text"]
+from nanosae.utils.device import get_device
+from nanosae.data import HuggingfaceDataIterator, batchify, truncate
 
 class TransformerLensActivationsGetter(ModelActivationsGetter):
-    def __init__(self, model_path: str, hook_name: str):
+
+    model: HookedTransformer
+    hook_name: str
+    device: str
+
+    def __init__(self, model_path: str, hook_name: str, device = None):
+        if device is None:
+            device = get_device()
+
         self.model = HookedTransformer.from_pretrained(model_path)
         self.hook_name = hook_name
+        self.device = device
+
+    @property
+    def d_model(self):
+        return self.model.cfg.d_model
+    
+    def get_tokens(self, data: Data) -> Tokens:
+        if isinstance(data, str):
+            return self.model.to_tokens(data)
+        elif isinstance(data, list) and isinstance(data[0], int):
+            return torch.tensor(data).to(self.device)
+        elif isinstance(data, torch.Tensor):
+            return data.to(self.device)
+        else:
+            raise ValueError(f"Unsupported data type: {type(data)}")
     
     def get_activations(self, tokens: Tokens) -> ModelActivations:
         with torch.no_grad():
             _, cache = self.model.run_with_cache(tokens)
         return cache[self.hook_name]
 
-# %%
-
 @dataclass 
 class ExperimentConfig:
-    # Data and model details
-    data_path: str = "apollo-research/roneneldan-TinyStories-tokenizer-gpt2"
+    # Model details
     model_path: str = "tiny-stories-1L-21M"
     hook_name: str = "blocks.0.hook_mlp_out"
 
+    # Dataset details
+    data_path: str = "apollo-research/roneneldan-TinyStories-tokenizer-gpt2"
+    split: str = "train"
+    streaming: bool = True
+
+    # SAE architecture details
+    expansion_factor: int = 16
+
     # Training details 
     batch_size = 4096
+    context_size = 512
     adam_beta1 = 0.9
     adam_beta2 = 0.999
     n_train_tokens: int = 100_000_000
@@ -60,41 +75,78 @@ class ExperimentConfig:
     lr: float = 5e-5
 
     # Boilerplate logging details
-    checkpoint_every_n_tokens: int
-    wandb_project: str
-    wandb_entity: str
-    wandb_group: str
-    wandb_name: str
+    checkpoint_every_n_tokens: int = 1_000_000
+    wandb_project: str = "nanosae"
+    wandb_entity: str = "dtch1997"
+    wandb_group: str = "demo"
+    wandb_name: str = "demo"
     wandb_mode: str = "online"
 
-def run_experiment():
+config = ExperimentConfig()
 
-    data_iter = TinystoriesTokensIterator("roneneldan/TinyStories", batch_size = 4)
-    batch = data_iter.next_batch()
-    print(len(batch))
-    print(batch[0])
+# %%
 
-    model_act_getter = TransformerLensActivationsGetter("tiny-stories-1L-21M", "blocks.0.hook_resid_pre")
-    model_acts = model_act_getter(batch)
-    print(model_acts.shape)
+def setup_trainer(config: ExperimentConfig) -> SAETrainer:
 
-    sae = VanillaSAE(d_in = 512, d_sae = 1024)
-    sae_train_wrapper = VanillaSAETrainingWrapper(sae, l1_coeff = 0.2)
+    # Setup model 
+    model_act_getter = TransformerLensActivationsGetter(
+        model_path = config.model_path,
+        hook_name = config.hook_name
+    )
 
+    # Setup data
+    data_iterator = HuggingfaceDataIterator(
+        data_path = config.data_path,
+        split = config.split,
+        streaming = config.streaming
+    )
 
-    wandb_config = WandbConfig(project = "nanosae", entity = "dtch1997", group = "demo", name = "demo")
+    def iter_tokens(data_iter: Iterator[Data]) -> Iterator[Tokens]:
+        for data in data_iter:
+            yield model_act_getter.get_tokens(data)
 
+    tokens_iterator = iter_tokens(data_iterator)
+    tokens_iterator = truncate(tokens_iterator, context_size=config.context_size)
+    tokens_iterator = batchify(tokens_iterator, batch_size=config.batch_size)
+
+    # Setup SAE
+    sae = VanillaSAE(d_in = model_act_getter.d_model, d_sae = model_act_getter.d_model * config.expansion_factor)
+    sae_train_wrapper = VanillaSAETrainingWrapper(sae, l1_coeff = config.l1_coeff)
+
+    # Setup optimizer
+    optimizer = torch.optim.Adam(
+        sae.parameters(), 
+        lr = config.lr, 
+        betas = (config.adam_beta1, config.adam_beta2)
+    )
+
+    # Setup logging
+    wandb_config = WandbConfig(
+        project = config.wandb_project,
+        entity = config.wandb_entity,
+        group = config.wandb_group,
+        name = config.wandb_name,
+        mode = config.wandb_mode
+    )
     logger = WandbLogger(wandb_config)
-    training_config = SAETrainerConfig(n_train_tokens = 10_000_000, checkpoint_every_n_tokens = 10_000)
-    trainer = SAETrainer(
+
+
+    # Setup training
+    training_config = SAETrainerConfig(
+        n_train_tokens = config.n_train_tokens,
+        checkpoint_every_n_tokens = config.checkpoint_every_n_tokens
+    )
+
+    return SAETrainer(
         config = training_config,
         sae_train_wrapper = sae_train_wrapper,
-        tokens_iterator = data_iter,
+        tokens_iterator = tokens_iterator,
         model_act_getter = model_act_getter,
-        optimizer = torch.optim.Adam(sae.parameters(), lr = 1e-3),
+        optimizer = optimizer,
         logger = logger
     )
-    trainer.fit()
+    
 
 if __name__ == "__main__":
-    run_experiment()
+    trainer = setup_trainer(config)
+    trainer.fit()
