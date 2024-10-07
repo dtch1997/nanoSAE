@@ -3,7 +3,12 @@ name = "nanoSAE"
 version = "0.1.0"
 description = "Minimal SAE training implementation"
 authors = [{ name = "Daniel Tan", email = "dtch1997@users.noreply.github.com" }]
-dependencies = ["torch>=2.4.1", "jaxtyping>=0.2.34", "datasets>=3.0.1"]
+dependencies = [
+    "torch>=2.4.1",
+    "jaxtyping>=0.2.34",
+    "datasets>=3.0.1",
+    "simple-parsing>=0.1.6",
+]
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
