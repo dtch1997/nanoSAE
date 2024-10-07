@@ -99,10 +99,10 @@ class VanillaSAETrainingWrapper(SAETrainingWrapper):
         sae_act = self.sae.encode(x)
         x_recon = self.sae.decode(sae_act)
 
-        mse_loss = (x - x_recon).pow(2).sum(-1)
-        l1_loss = sae_act.abs().sum(-1)
+        mse_loss = (x - x_recon).pow(2).sum(-1).mean()
+        l1_loss = sae_act.abs().sum(-1).mean()
         
-        loss = (mse_loss + self.l1_coeff * l1_loss).mean()
+        loss = mse_loss + self.l1_coeff * l1_loss
         return TrainStepOutput(
             sae_in=x,
             sae_out=x_recon,

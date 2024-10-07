@@ -64,7 +64,7 @@ class ExperimentConfig:
     expansion_factor: int = 16
 
     # Training details 
-    batch_size = 4096
+    batch_size = 8
     context_size = 512
     adam_beta1 = 0.9
     adam_beta2 = 0.999
